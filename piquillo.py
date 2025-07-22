@@ -3,9 +3,9 @@ import argparse
 import numpy as np
 from PIL import Image
 from Crypto.Hash import HMAC, SHA256
-from image_utils import *
-from file_processing_utils import *
-from syndrome_utils import calculate_points_dir, calculate_points_inv
+from utils.image_utils import *
+from utils.file_processing_utils import *
+from utils.syndrome_utils import calculate_points_dir, calculate_points_inv
 
 
 def main():
