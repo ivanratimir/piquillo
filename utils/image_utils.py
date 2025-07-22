@@ -1,5 +1,5 @@
 import numpy as np
-from syndrome_utils import get_syndrome
+from .syndrome_utils import get_syndrome
 
 
 # LSB +/-1 embedding for pixel values
