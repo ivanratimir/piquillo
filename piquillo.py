@@ -1,235 +1,326 @@
-import sys
 import argparse
+import textwrap
+import sys
+import os
 import numpy as np
 from PIL import Image
+from getpass import getpass
 from Crypto.Hash import HMAC, SHA256
-from utils.image_utils import *
-from utils.file_processing_utils import *
-from utils.syndrome_utils import calculate_points_dir, calculate_points_inv
+from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
 
 
 def main():
 
-    parser = argparse.ArgumentParser(description="piquillo: pixel steganography")
+    parser = argparse.ArgumentParser(description="... for bitmap steganography")
     subparsers = parser.add_subparsers(dest="task")
                      
-    info = subparsers.add_parser('info', help='prints image capacity')
-    info.add_argument('-ci', type=str, help='cover image path', required=True)
-    info.add_argument('-k', type=int, help='binary block size', default=1)
+    pcheck = subparsers.add_parser('check', help='check cover capacity')
+    pcheck.add_argument('-ci', type=str, help='cover image path', required=True)
+    pcheck.add_argument('-k', type=int, help='binary block size', choices=range(1,9), default=1)
         
-    embed = subparsers.add_parser('embed', help='embed a secret file')
-    embed.add_argument('-sf', type=str, help='secret file path', required=True)
-    embed.add_argument('-ci', type=str, help='cover image path', required=True)
-    embed.add_argument('-k', type=int, help='binary block size', default=1)
+    pembed = subparsers.add_parser('embed', help='embed file data')
+    pembed.add_argument('-mf', type=str, help='embed file path', required=True)
+    pembed.add_argument('-ci', type=str, help='cover image path', required=True)
+    pembed.add_argument('-k', type=int, help='binary block size', choices=range(1,9), default=1)
 
-    extract = subparsers.add_parser('extract', help='extract a secret file')
-    extract.add_argument('-si', type=str, help='stego image path', required=True)
-    extract.add_argument('-k', type=int, help='binary block size', default=1)
+    pextract = subparsers.add_parser('extract', help='extract file data')
+    pextract.add_argument('-si', type=str, help='stego image path', required=True)
+    pextract.add_argument('-k', type=int, help='binary block size', choices=range(1,9), default=1)
 
     args = parser.parse_args()
 
-
     match args.task:
 
-        case 'info':
+        case 'check':
+            
+            k = args.k
 
-            k = np.abs(args.k)
-            im_path = args.ci
-
-            # load image array
-            cover = Image.open(im_path)
+            cover = Image.open(args.ci)
             c_arr = np.array(cover)
             c_arr1 = c_arr.flatten() 
 
-            # n of image pixel points
-            n_pts = len(c_arr1)
-
-            if k == 1:
-                byte_cap = n_pts // 8
+            byte_cap = len(c_arr1) // 8
             
-            else:
-                b_len = 2 ** k
-                # cap in n of blocks
-                n_b = n_pts // b_len
-                byte_cap = k*n_b // 8
+            n = 2**k - 1 # block length
 
-            print(f"\ncover capacity: {byte_cap} B\n")
+            # capacity in n of blocks
+            n_blocks = len(c_arr1) // n
+            byte_cap = n_blocks * k // 8
+            
+            print(f"cover capacity: {byte_cap} B")
 
-    
         case 'embed':
 
-            sf_path = args.sf
-            im_path = args.ci
-            k = np.abs(args.k)
+            fpath = args.mf
+            fname = os.path.basename(fpath).encode()
+            k = args.k
 
-            if not os.path.exists(sf_path):
-                print(f"error: {sf_path} doesn't exist!")
+            if not os.path.exists(fpath):
+                print(f"{fname} doesn't exist!")
+                print("exiting...")
                 sys.exit(1)
-                
-            aes_passw = input("\nenter file encryption password: ")
-            p1_b, p2_b = process_file_to_binary(sf_path, k, aes_passw)
+            
+            with open(fpath, "rb") as f:
+                fdata = f.read()
 
-            # k=1: n of bits (=embedding pts); k>1: n of bin blocks
-            n1_b = len(p1_b)
-            n2_b = len(p2_b)
+            pt2 = len(fname).to_bytes(1) + fname + fdata
+            pt1 = len(pt2).to_bytes(3)
+            plaintext = pt1 + pt2
 
-            # for LSB method
-            if k == 1:
-                n_pts1 = n1_b
-                n_pts2 = n2_b
+            # encryption password prompt and hashing
+            pw1 = getpass(prompt="password 1: ").encode()
+            h1 = SHA256.new(data=pw1)
+            key = h1.digest()
+            mac = HMAC.new(key, plaintext, SHA256).digest()
+            iv, ciphertext = encrypt(plaintext, key)
 
-            # for syndrome coding method
-            else:
-                out = calculate_points_dir(k, n1_b, n2_b)
-                n_pts1 = out[0]
-                n_pts2 = out[1]
-                shape_ids1 = out[2]
-                shape_ids2 = out[3]
+            # arrange bytes and convert to 1s and 0s
+            mB1 = iv + ciphertext[:3]
+            mB2 = ciphertext[3:] + mac
+            mB = mB1 + mB2
+            mb = ''.join(f"{B:08b}" for B in mB)
+            mb = pad_wrap(mb, k)
 
-            # load cover image array
-            cover = Image.open(im_path)
+            # load cover image
+            cover = Image.open(args.ci) 
+            # convert to a 1-D array
             c_arr = np.array(cover)
-
-            # flat cover pixels array
             c_arr1 = c_arr.flatten()
 
-            # n of image pixel points
-            n_pts = len(c_arr1)
-            ids_arr0 = np.arange(n_pts)
-
-            if (n_pts1+n_pts2) > n_pts:
-                print("error: exceeded image embedding capacity")
+            # cover block length
+            n = 2**k - 1 
+            # capacity in num of blocks
+            n_blocks = len(c_arr1) // n
+            if len(mb) > n_blocks:
+                print("not enough embedding capacity!")
+                print("quitting... QQ")
                 sys.exit(1)
 
-            rng_passw = input("enter image embedding password: ")
-            key = hash_digest(rng_passw)
-            seed = int.from_bytes(key)
+            # embedding password prompt (for PRNG's seed)
+            pw2 = getpass(prompt="password 2: ").encode()
+            h2 = SHA256.new(data=pw2)
+            seed = int.from_bytes(h2.digest())
             rng = np.random.default_rng(seed)
 
-            # indices selection for p1_b and p2_b embedding
-            sel1 = rng.choice(ids_arr0, n_pts1, 0)
-            mask = ~np.isin(ids_arr0, sel1)
-            ids_arr1 = ids_arr0[mask]
-            sel2 = rng.choice(ids_arr1, n_pts2, 0)
-
-            # for syndrome coding method
-            if k > 1:
-                sel1 = np.reshape(sel1, shape_ids1)
-                sel2 = np.reshape(sel2, shape_ids2)
-
-            # flat stego pixels array s_arr1
-            s_arr1 = embed_pixels(c_arr1, sel1, p1_b, k)
-            s_arr1 = embed_pixels(c_arr1, sel2, p2_b, k)
-
+            # permutaded image indices
+            ids = rng.permutation(len(c_arr1))
+            
+            # 1-D stego array with embedded data
+            s_arr1 = embed(c_arr1, ids, mb, k)
             shape = c_arr.shape
             s_arr = s_arr1.reshape(shape)
 
+            # saving output stego image
+            oname = input("output name: ")
+            print(f"saving as {oname}.png...")
             stego = Image.fromarray(s_arr)
-            print("\nsaving stego image...")
-            stego.save("stego.png")
+            stego.save(oname+".png") 
 
         case 'extract':
 
-            k = np.abs(args.k)
-            im_path = args.si
+            k = args.k
 
-            # load stego image array
-            im = Image.open(im_path)
-            im_arr = np.array(im)
-            s_arr = im_arr.flatten() 
-
-            stego = Image.open(im_path)
-            s_arr = np.array(im)
-            
+            # load stego image
+            stego = Image.open(args.si)
+            # convert to a 1-D array
+            s_arr = np.array(stego)
             s_arr1 = s_arr.flatten() 
 
-            # n of image pixel points
-            n_pts = len(s_arr1)
-            ids_arr0 = np.arange(n_pts)
-
-            rng_passw = input("enter image embedding password: ")
-            key = hash_digest(rng_passw)
-            seed = int.from_bytes(key)
+            # embedding password prompt (for PRNG's seed)
+            pw2 = getpass(prompt="password 2: ").encode()
+            h2 = SHA256.new(data=pw2)
+            seed = int.from_bytes(h2.digest())
             rng = np.random.default_rng(seed)
 
-            # part 1: 19 bytes = 16 B (iv) + 3 B (encrypted size)
-            # for LSB method
-            if k == 1:
-                n_pts1 = 19 * 8
-            # for syndrome coding method
+            # permutated image indices
+            ids = rng.permutation(len(s_arr1))
+
+            n_blocks1 = np.ceil(19*8/k).astype(int)
+            n1 = n_blocks1 * (2**k - 1)
+
+            mb1 = extract(s_arr1, ids[:n1], k)
+            mB1 = bits_to_bytes(merge_unpad(mb1))
+
+            # nu: number of unpadded bits
+            nu = (len(mb1) % 8)
+            if nu > 0:
+                mb2 = mb1[-nu:]
             else:
-                n_pts1, shape_ids1 = calculate_points_inv(k, 19)
+                mb2 = []
+            
+            # separate iv for decryption
+            iv = mB1[:16]
 
-            # indices selection with embedded p1_b
-            sel1 = rng.choice(ids_arr0, n_pts1, 0)
+            # decryption password prompt and hashing
+            pw1 = getpass(prompt="password 1: ").encode()
+            h1 = SHA256.new(data=pw1)
+            key = h1.digest()
 
-            if k > 1:
-                sel1 = np.reshape(sel1, shape_ids1)
+            # ciphertext: 3 B of data for 2nd extraction
+            ciphertext = mB1[16:]
+            pt1 = decrypt(iv, ciphertext, key)
 
-            p1_b = extract_pixels(s_arr1, sel1, k)
-            p1_B = bits_to_bytes(merge_unpad(p1_b))
+            # n bytes 2 (fname_len + fname + fdata + MAC)
+            nB2 = int.from_bytes(pt1) + 32
+            n_blocks2 = np.ceil(nB2*8/k).astype(int)
+            n2 = n_blocks2 * (2**k - 1)
+            
+            mb2 += extract(s_arr1, ids[n1:n1+n2], k)
+            mB2 = bits_to_bytes(merge_unpad(mb2))[:nB2]
 
-            iv = p1_B[:16]
-        
-            aes_passw = input("enter file encryption password: ")
-            key = hash_digest(aes_passw)
-
-            ciphertext = p1_B[16:]
-            size = decrypt(iv, ciphertext, key)
-            size = int.from_bytes(size)
-
-            # part 2: excracted "size" number of B + 32 B (for mac)
-            if k == 1:
-                n_pts2 = (size+32) * 8
-            else:
-                n_pts2, shape_ids2 = calculate_points_inv(k, size+32)
-
-            if (n_pts1+n_pts2) > n_pts:
-                print("error: extracted size exceeded capacity")
-                sys.exit(1)
-
-            # indices selection with embedded p2_b
-            mask = ~np.isin(ids_arr0, sel1)
-            ids_arr1 = ids_arr0[mask]
-            sel2 = rng.choice(ids_arr1, n_pts2, 0)
-
-            if k > 1:
-                sel2 = np.reshape(sel2, shape_ids2)
-
-            p2_b = extract_pixels(s_arr1, sel2, k)
-            p2_B = bits_to_bytes(merge_unpad(p2_b))
-
-            ciphertext += p2_B[:-32]
-            mac = p2_B[-32:]
-
-            print("")
+            ciphertext += mB2[:-32]
+            mac = mB2[-32:]
             plaintext = decrypt(iv, ciphertext, key)
+
+            h = HMAC.new(key, plaintext, SHA256)
+
             try:
-                HMAC.new(key, plaintext, SHA256).verify(mac)
+                h.verify(mac)
+                print("extracted bytes are authentic! \\o/")
 
-                data = plaintext[3:]
+                pt2 = plaintext[3:]
+                fname_len = pt2[0]
+                fname = pt2[1:1 + fname_len]
+                fdata = pt2[1 + fname_len: ]
 
-                f_name = data[1:1+data[0]].decode()
-                f_data = data[1+data[0]: ]
-        
-
-                print(f"saving exctracted {f_name} file...")
-                with open(f_name, "wb") as f:
+                print(f"writing extracted {fname} bytes...")
+                with open(fname, "wb") as f:
     
-                    f.write(f_data)
-            except:
-                print("error: plaintext failed authentication!")
-                sys.exit(1)
-                
+                    f.write(fdata)
 
+            except ValueError:
+                print("invalid MAC. the message was tampered with or the key is wrong!")
+                print("quitting... QQ")
+                sys.exit(1)
+            
         case _:
 
             parser.print_help()
 
 
+# ------------------------------------------ #
+# ------- IMAGE PROCESSING FUNCTIONS ------- #
+# ------------------------------------------ #
+
+
+# LSB +/-1 embedding
+def PM_1(pv):
+
+    match pv:
+        case 0:
+            pv += np.uint8(1)
+        case 255:
+            pv -= np.uint8(1)
+        case _:
+            pv += np.random.choice([-1, 1])
+
+    return pv
+
+
+# S(y): determine syndrome of binary block y
+def S(y):
+    
+    s = 0
+    for i, b in enumerate(y):
+        if b:
+            s ^= i+1
+            
+    return s
+
+
+def embed(c_arr1, ids, m, k):
+
+    s_arr1 = c_arr1
+    
+    n = 2**k - 1 # block length
+
+    for i in range(len(m)):
+
+        # block of indices
+        block = ids[i*n : i*n + n]
+        # binary cover block
+        c = c_arr1[block] % 2
+        # error index
+        e = S(c) ^ int(m[i], 2)
+        if e > 0:
+
+            mod = block[e-1]
+            pv = c_arr1[mod]
+            pv1 = PM_1(pv)
+            s_arr1[mod] = pv1
+
+    return s_arr1
+
+
+def extract(s_arr1, ids, k):
+
+    n = 2**k - 1 # block length
+
+    m = []
+    for i in range(0, len(ids), n):
+
+        # block of indices
+        block = ids[i: i+n]
+        # binary stego block
+        s = s_arr1[block] % 2
+        m += bin(S(s))[2:].zfill(k)
+        
+    return m
+
+
+# ------------------------------------------ #
+# ------ MESSAGE PROCESSING FUNCTIONS ------ #
+# ------------------------------------------ #
+
+
+def bits_to_bytes(bits):
+
+    val = int(bits, 2)
+    n_B = len(bits) // 8
+
+    return val.to_bytes(n_B, byteorder="big")
+
+
+# zero pad and wrap to equal k length blocks
+def pad_wrap(bits, k):
+
+    mod = len(bits) % k
+    if mod != 0:
+        bits += "0" * (k-mod)
+    
+    return textwrap.wrap(bits, k)
+
+
+# merge binary blocks to string and unpad 0s
+def merge_unpad(bits):
+
+    bits = "".join(bits)
+    mod = len(bits) % 8
+
+    return bits[:len(bits) - mod]
+
+
+def encrypt(plaintext, key):
+
+    iv = get_random_bytes(16)
+    cipher = AES.new(key, AES.MODE_CFB, iv)
+    ciphertext = cipher.encrypt(plaintext)
+
+    return iv, ciphertext
+
+
+def decrypt(iv, ciphertext, key):
+
+    cipher = AES.new(key, AES.MODE_CFB, iv)
+    plaintext = cipher.decrypt(ciphertext)
+    
+    return plaintext
+
+
 if __name__ == '__main__':
 
-    welcome_ascii = r"""
+    hello = r"""
        _             _ _ _                    
  _ __ (_) __ _ _   _(_) | | ___   _ __  _   _ 
 | '_ \| |/ _` | | | | | | |/ _ \ | '_ \| | | |
@@ -238,7 +329,8 @@ if __name__ == '__main__':
 |_|         |_|                  |_|    |___/ 
 
         """
-    print(welcome_ascii)
+    print(hello)
 
     main()
+
 
