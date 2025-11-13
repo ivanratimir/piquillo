@@ -67,4 +67,4 @@ Where `[task]` is replaced with one of the listed without brackets.
 More about *syndrome coding* (also referred to as *matrix embedding*) can be found on [Daniel Lerch's website](https://daniellerch.me/stego/codes/binary-hamming-en/), which explains in greater detail how this type of embedding method is applied for hiding information. The applied method in this project is based on the interpretation of Hamming codes from [3Blue1Brown's video](https://www.youtube.com/watch?v=b3NxrZOu_CE), which allows for a more flexible (length) application and helps avoid matrix definitions. 
 
 ## Acknowledgements
-The main CLI structure is inspired by [`steghide`](https://steghide.sourceforge.net/) (a known piece of steganography software), as well as by aesthetics of [`tomato.py`](https://github.com/itsKaspar/tomato) (itsKaspar's python script to glitch AVI files).
+Main CLI structure is inspired by [`steghide`](https://steghide.sourceforge.net/) (a known piece of steganography software), as well as by aesthetics of [`tomato.py`](https://github.com/itsKaspar/tomato) (itsKaspar's python script to glitch AVI files).
