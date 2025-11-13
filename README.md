@@ -1,7 +1,12 @@
-# piquillo
+# piquillo🌶️
 
-A Python script for embedding and extracting secret messages in bitmap images using LSB ±1 and syndrome coding steganography techniques, developed as part of an Image and Signal Processing course project and thesis.
-The script works with lossless image formats (such as PNG and BMP), enabling users to hide message files within images by modifying pixel values in the spatial domain.
+**Make spicy bitmaps embedded with secrets using `piquillo.py`.** 
+
+## Overview
+
+`piquillo.py` is a **python script able to encrypt and embed, as well as extract and decrypt hidden messages in bitmap's pixel values.**
+
+note: ***the script works with lossless image formats, such as PNG and BMP.***
 
 ## Disclaimer
 
@@ -18,7 +23,12 @@ This software is provided for educational and research purposes only. The author
 
 ## Requirements
 
-The script requires additional `pillow` and `numpy` packages for image processing, as well as `pycryptodome` for cryptographic operations. These packages are listed in `requirements.txt`, which can be installed in a Python virtual environment.
+Additional packages are required to run `piquillo.py`:
+
+- [`pillow`](https://pillow.readthedocs.io/en/stable/) and [`numpy`](https://numpy.org/doc/stable/) for image processing
+- [`pycryptodome`](https://www.pycryptodome.org/) for cryptographic operations
+
+These packages are listed in `requirements.txt`, which can be installed in a python virtual environment.
 
 ## Usage
 
@@ -57,4 +67,4 @@ Where `[task]` is replaced with one of the listed without brackets.
 More about *syndrome coding* (also referred to as *matrix embedding*) can be found on [Daniel Lerch's website](https://daniellerch.me/stego/codes/binary-hamming-en/), which explains in greater detail how this type of embedding method is applied for hiding information. The applied method in this project is based on the interpretation of Hamming codes from [3Blue1Brown's video](https://www.youtube.com/watch?v=b3NxrZOu_CE), which allows for a more flexible (length) application and helps avoid matrix definitions. 
 
 ## Acknowledgements
-The main CLI structure is inspired by [steghide](https://steghide.sourceforge.net/) (a known piece of steganography software), as well as by aesthetics of [tomato](https://github.com/itsKaspar/tomato) (a glitch art project).
+The main CLI structure is inspired by [`steghide`](https://steghide.sourceforge.net/) (a known piece of steganography software), as well as by aesthetics of [`tomato.py`](https://github.com/itsKaspar/tomato) (itsKaspar's python script to glitch AVI files).
