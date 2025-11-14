@@ -1,10 +1,10 @@
-# piquillo🌶️
+# piquillo 🌶️
 
 **Make spicy bitmaps embedded with secrets using `piquillo.py`.** 
 
 ## Overview
 
-`piquillo.py` is a **python script able to encrypt and embed, as well as extract and decrypt hidden messages in bitmap's pixel values.**
+`piquillo.py` is a **python script able to encrypt and embed, as well as extract and decrypt hidden messages (as files) in bitmap's pixel values.**
 
 note: ***the script works with lossless image formats, such as PNG and BMP.***
 
@@ -52,19 +52,19 @@ Where `[task]` is replaced with one of the listed without brackets.
 
 `python piquillo.py embed -ci cover.png -mf message.txt -k 4`
 
-*enter encryption and embedding passwords, following with stego image name (e.g. stego.png)...*
+*enter encryption (1) and embedding (2) passwords, following with stego image name (e.g. stego.png)...*
 
 **Extraction example:**
 
 ```python piquillo.py extract -si stego.png -k 4```
 
-*enter extraction and decryption passwords...*
+*enter extraction (2) and decryption (1) passwords...*
 
 **Note about the *k* binary block size number:**
 
-**The default value for k is 1** for use with LSB ±1 embedding, **which does not have to be specified**. IF the k is set to be higher, syndrome coding will be used. Read file when encrypted and converted to bits will be divided into equal *k* length blocks for syndrome coding. This also means it is no longer necessary to modify up to one pixel value for embedding a bit (if the LSB doesn't match), but by modifying one pixel value LSB k bits can be stored (one binary block). This reduces the number of modifications (inserting less noise into image), but also reduces the capacity of image. 
+Secret message file is encrypted and converted to bits, which are divided into equal *k* length blocks for syndrome coding with LSB +/- 1 embedding.
 
-More about *syndrome coding* (also referred to as *matrix embedding*) can be found on [Daniel Lerch's website](https://daniellerch.me/stego/codes/binary-hamming-en/), which explains in greater detail how this type of embedding method is applied for hiding information. The applied method in this project is based on the interpretation of Hamming codes from [3Blue1Brown's video](https://www.youtube.com/watch?v=b3NxrZOu_CE), which allows for a more flexible (length) application and helps avoid matrix definitions. 
+*Syndrome coding* (also referred to as *matrix embedding*) is an efficient method of embedding k bits of data by modifying a single pixel value. More about this method of embedding can be found on [Daniel Lerch's website](https://daniellerch.me/stego/codes/binary-hamming-en/), which explains in greater detail how it's applied for hiding information. The applied method in this project is based on the interpretation of Hamming codes from [3Blue1Brown's video](https://www.youtube.com/watch?v=b3NxrZOu_CE), which allows for a more flexible (length) application and helps avoid matrix definitions. 
 
 ## Acknowledgements
 Main CLI structure is inspired by [`steghide`](https://steghide.sourceforge.net/) (a known piece of steganography software), as well as by aesthetics of [`tomato.py`](https://github.com/itsKaspar/tomato) (itsKaspar's python script to glitch AVI files).
