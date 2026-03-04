@@ -6,6 +6,8 @@
 
 `piquillo.py` is a **python script able to encrypt and embed, as well as extract and decrypt hidden messages (as files) in bitmap's pixel values.**
 
+This respository contains updated code developed for my graduate thesis project: [Steganografija u digitalnim slikama](https://www.unirepository.svkri.uniri.hr/object/riteh:5406)
+
 note: ***the script works with lossless image formats, such as PNG and BMP.***
 
 ## Disclaimer
